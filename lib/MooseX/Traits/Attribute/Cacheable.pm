@@ -58,10 +58,17 @@ after install_accessors => sub {
             my $self = shift;
             my $instance = shift;
 
-            if ($self->has_cache and not $self->_cache){
-                $self->_cache( $self->cache
-        
-            if ($self->has_cache){
+            if ($self->has_cache_builder and not $self->has_value('cache')){
+                warn "have cache builder but no cache - building from object instance";
+                # pull the cache object from the calling instance
+                # and store as our attribute's cache
+                my $cache = $self->cache_builder->( $instance );
+                $self->cache( $cache );
+                warn "our new cache object is a ".ref($cache);
+            }
+
+            if ($self->has_value('cache')){
+                warn "checking cache for value";
                 if (my $cache_val = $self->cache_get( $self->cache_key )){
                     # found value in the cache
                     return $cache_val;

@@ -23,24 +23,23 @@ has 'cache_expiry' => (
     is => 'ro',
     isa => 'Int',
     predicate => 'has_cache_expiry',
-    default => 300,
 );
 
 after install_accessors => sub {
     my $self = shift;
 
     # all irrelevant unless we're building attribute values
-    return unless $self->has_builder && $self->can( $self->builder );
+    return unless $self->has_builder;
 
     # again, irrelevant unless we've been given a cache_builder coderef
     return unless $self->has_cache_builder;
 
     Moose->throw_error(
-        "Attribute cache_key required if using cacheable attributes"
+        "Attribute cache_key required for Cacheable attribute ".$self->name
     ) unless $self->has_cache_key;
 
     Moose->throw_error(
-        "Attribute cache_type required if using cacheable attributes"
+        "Attribute cache_type required for Cacheable attribute ".$self->name
     ) unless $self->has_cache_type;
 
     # mixin MooseX::WithCache to the attribute metaclass
@@ -52,23 +51,19 @@ after install_accessors => sub {
         },
     );
 
-    $self->associated_metaclass->add_around_method_modifier(
+    $self->associated_class->add_around_method_modifier(
         $self->builder => sub {
             my $orig = shift;
-            my $self = shift;
             my $instance = shift;
 
-            if ($self->has_cache_builder and not $self->has_value('cache')){
-                warn "have cache builder but no cache - building from object instance";
+            if ($self->has_cache_builder and not $self->meta->get_attribute('cache')->has_value($self)){
                 # pull the cache object from the calling instance
                 # and store as our attribute's cache
                 my $cache = $self->cache_builder->( $instance );
                 $self->cache( $cache );
-                warn "our new cache object is a ".ref($cache);
             }
 
-            if ($self->has_value('cache')){
-                warn "checking cache for value";
+            if ($self->meta->get_attribute('cache')->has_value($self)){
                 if (my $cache_val = $self->cache_get( $self->cache_key )){
                     # found value in the cache
                     return $cache_val;
@@ -88,6 +83,6 @@ after install_accessors => sub {
             return $self->$orig(@_);
         },
     );
-}
+};
 
 1;

@@ -54,33 +54,36 @@ after install_accessors => sub {
     $self->associated_class->add_around_method_modifier(
         $self->builder => sub {
             my $orig = shift;
-            my $instance = shift;
+            my $instance = shift; # the class containing this attribute
 
-            if ($self->has_cache_builder and not $self->meta->get_attribute('cache')->has_value($self)){
+            # just run the original builder if we're not doing caching
+            return $instance->$orig(@_) unless $self->has_cache_builder;
+
+            # build the cache object if we haven't yet done so
+            unless ($self->meta->get_attribute('cache')->has_value($self)){
                 # pull the cache object from the calling instance
                 # and store as our attribute's cache
                 my $cache = $self->cache_builder->( $instance );
                 $self->cache( $cache );
             }
 
-            if ($self->meta->get_attribute('cache')->has_value($self)){
-                if (my $cache_val = $self->cache_get( $self->cache_key )){
-                    # found value in the cache
-                    return $cache_val;
-                } else {
-                    # build value and store it in the cache
-                    my $built_val = $self->$orig(@_);
-                    $self->cache_set(
-                        $self->cache_key => $built_val,
-                        ( $self->has_cache_expiry ? $self->cache_expiry : () )
-                    );
-                
-                    return $built_val;
-                }
-            }
+            # abort if we still don't have a cache set
+            return unless $self->meta->get_attribute('cache')->has_value($self);
 
-            # otherwise, just run the original builder
-            return $self->$orig(@_);
+            # actually do the cache lookup
+            if (my $cache_val = $self->cache_get( $self->cache_key )){
+                # found value in the cache
+                return $cache_val;
+            } else {
+                # build value and store it in the cache
+                my $built_val = $instance->$orig(@_);
+                $self->cache_set(
+                    $self->cache_key => $built_val,
+                    ( $self->has_cache_expiry ? $self->cache_expiry : () )
+                );
+            
+                return $built_val;
+            }
         },
     );
 };

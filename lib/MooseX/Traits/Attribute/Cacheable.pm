@@ -25,13 +25,16 @@ after install_accessors => sub {
             my $orig = shift;
             my $instance = shift; # the class containing this attribute
 
+            my $instance_class = Class::MOP::class_of($instance);
+            my $attribute_class = Class::MOP::class_of($attribute);
+
             # just run the original builder if we're not doing caching
             return $instance->$orig(@_)
-                unless $instance->meta->has_cache;
+                unless $instance_class->has_cache;
 
             # ensure MooseX::WithCache is applied to the attribute
-            my $cache_type = $instance->meta->cache_type ?
-                $instance->meta->cache_type : ref( $instance->meta->cache );
+            my $cache_type = $instance_class->cache_type ?
+                $instance_class->cache_type : ref( $instance_class->cache );
             Moose::Util::ensure_all_roles(
                 $attribute,
                 'MooseX::WithCache', {
@@ -41,14 +44,14 @@ after install_accessors => sub {
             );
 
             # copy the cache object if we haven't yet done so
-            unless ($attribute->meta->get_attribute('cache')->has_value($attribute)){
+            unless ($attribute_class->find_attribute_by_name('cache')->has_value($attribute)){
                 # pull the cache object from the calling instance
                 # and store as our attribute's cache
-                $attribute->cache( $instance->meta->cache );
+                $attribute->cache( $instance_class->cache );
             }
 
             # abort if we still don't have a cache set
-            return unless $attribute->meta->get_attribute('cache')->has_value($attribute);
+            return unless $attribute_class->find_attribute_by_name('cache')->has_value($attribute);
 
             # actually do the cache lookup
             if (my $cache_val = $attribute->cache_get( $attribute->cache_key )){

@@ -1,18 +1,11 @@
 #!/usr/bin/env perl
 
 package Foo;
-use Moose;
-
-has 'cache' => (
-    is => 'rw',
-    isa => 'Object',
-);
+use Moose -traits => 'HasCache';
 
 has 'foo' => (
     traits => ['Cacheable'],
     cache_key => 'foo',
-    cache_type => 'Cache::FastMmap',
-    cache_builder => sub { shift->cache },
     isa => 'Str',
     is  => 'rw',
     lazy_build => 1,
@@ -25,29 +18,25 @@ sub _build_foo {
     warn "finished building foo";
 }
 
-sub get_foo {
-    my $self = shift;
-
-    warn "foo is ".$self->foo;
-}
 
 no Moose;
 
-package main;
 
+package main;
 use strict;
 use warnings;
 
 use Cache::FastMmap;
-my $cache = Cache::FastMmap->new();
+
+Foo->meta->cache( Cache::FastMmap->new() );
 
 print "\n[", scalar localtime, "] getting foo once...\n";
-my $foo1 = new Foo( cache => $cache );
-$foo1->get_foo;
+my $foo1 = Foo->new;
+print $foo1->foo, "\n";
 
 print "\n[", scalar localtime, "] getting foo twice...\n";
-my $foo2 = new Foo( cache => $cache );
-$foo2->get_foo;
+my $foo2 = Foo->new;
+print $foo2->foo, "\n";
 
 print "\n[", scalar localtime, "]\n";
 

@@ -1,22 +1,11 @@
 package MooseX::Traits::Attribute::Cacheable;
 use Moose::Role;
 
-has 'cache_builder' => (
-    is => 'ro',
-    isa => 'CodeRef',
-    predicate => 'has_cache_builder',
-);
-
-has 'cache_type' => (
-    is => 'ro',
-    isa => 'Str',
-    predicate => 'has_cache_type',
-);
-
 has 'cache_key' => (
     is => 'ro',
     isa => 'Str',
     predicate => 'has_cache_key',
+    required => 1,
 );
 
 has 'cache_expiry' => (
@@ -26,60 +15,51 @@ has 'cache_expiry' => (
 );
 
 after install_accessors => sub {
-    my $self = shift;
+    my $attribute = shift;
 
     # all irrelevant unless we're building attribute values
-    return unless $self->has_builder;
+    return unless $attribute->has_builder;
 
-    # again, irrelevant unless we've been given a cache_builder coderef
-    return unless $self->has_cache_builder;
-
-    Moose->throw_error(
-        "Attribute cache_key required for Cacheable attribute ".$self->name
-    ) unless $self->has_cache_key;
-
-    Moose->throw_error(
-        "Attribute cache_type required for Cacheable attribute ".$self->name
-    ) unless $self->has_cache_type;
-
-    # mixin MooseX::WithCache to the attribute metaclass
-    Moose::Util::apply_all_roles(
-        $self,
-        'MooseX::WithCache', {
-            backend => $self->cache_type,
-            name    => 'cache',
-        },
-    );
-
-    $self->associated_class->add_around_method_modifier(
-        $self->builder => sub {
+    $attribute->associated_class->add_around_method_modifier(
+        $attribute->builder => sub {
             my $orig = shift;
             my $instance = shift; # the class containing this attribute
 
             # just run the original builder if we're not doing caching
-            return $instance->$orig(@_) unless $self->has_cache_builder;
+            return $instance->$orig(@_)
+                unless $instance->meta->has_cache;
 
-            # build the cache object if we haven't yet done so
-            unless ($self->meta->get_attribute('cache')->has_value($self)){
+            # ensure MooseX::WithCache is applied to the attribute
+            my $cache_type = $instance->meta->cache_type ?
+                $instance->meta->cache_type : ref( $instance->meta->cache );
+            Moose::Util::ensure_all_roles(
+                $attribute,
+                'MooseX::WithCache', {
+                    backend => $cache_type,
+                    name    => 'cache',
+                }
+            );
+
+            # copy the cache object if we haven't yet done so
+            unless ($attribute->meta->get_attribute('cache')->has_value($attribute)){
                 # pull the cache object from the calling instance
                 # and store as our attribute's cache
-                my $cache = $self->cache_builder->( $instance );
-                $self->cache( $cache );
+                $attribute->cache( $instance->meta->cache );
             }
 
             # abort if we still don't have a cache set
-            return unless $self->meta->get_attribute('cache')->has_value($self);
+            return unless $attribute->meta->get_attribute('cache')->has_value($attribute);
 
             # actually do the cache lookup
-            if (my $cache_val = $self->cache_get( $self->cache_key )){
+            if (my $cache_val = $attribute->cache_get( $attribute->cache_key )){
                 # found value in the cache
                 return $cache_val;
             } else {
                 # build value and store it in the cache
                 my $built_val = $instance->$orig(@_);
-                $self->cache_set(
-                    $self->cache_key => $built_val,
-                    ( $self->has_cache_expiry ? $self->cache_expiry : () )
+                $attribute->cache_set(
+                    $attribute->cache_key => $built_val,
+                    ( $attribute->has_cache_expiry ? $attribute->cache_expiry : () )
                 );
             
                 return $built_val;

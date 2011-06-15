@@ -26,7 +26,6 @@ after install_accessors => sub {
             my $instance = shift; # the class containing this attribute
 
             my $instance_class = Class::MOP::class_of($instance);
-            my $attribute_class = Class::MOP::class_of($attribute);
 
             # just run the original builder if we're not doing caching
             return $instance->$orig(@_)
@@ -42,6 +41,8 @@ after install_accessors => sub {
                     name    => 'cache',
                 }
             );
+
+            my $attribute_class = Class::MOP::class_of($attribute);
 
             # copy the cache object if we haven't yet done so
             unless ($attribute_class->find_attribute_by_name('cache')->has_value($attribute)){

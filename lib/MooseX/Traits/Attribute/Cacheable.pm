@@ -2,14 +2,13 @@ package MooseX::Traits::Attribute::Cacheable;
 use Moose::Role;
 
 has 'cache_key' => (
-    is => 'ro',
+    is => 'rw',
     isa => 'Str',
     predicate => 'has_cache_key',
-    required => 1,
 );
 
 has 'cache_expiry' => (
-    is => 'ro',
+    is => 'rw',
     isa => 'Int',
     predicate => 'has_cache_expiry',
 );
@@ -28,8 +27,10 @@ after install_accessors => sub {
             my $instance_class = Class::MOP::class_of($instance);
 
             # just run the original builder if we're not doing caching
+            # - must have cache defined on the calling class and a cache
+            #   key defined on our attribute instance
             return $instance->$orig(@_)
-                unless $instance_class->has_cache;
+                unless ($instance_class->has_cache and $attribute->has_cache_key);
 
             # ensure MooseX::WithCache is applied to the attribute
             my $cache_type = $instance_class->cache_type ?
@@ -42,6 +43,7 @@ after install_accessors => sub {
                 }
             );
 
+            # get this after we mixin MX::WithCache, because that changes the class
             my $attribute_class = Class::MOP::class_of($attribute);
 
             # copy the cache object if we haven't yet done so
